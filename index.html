@@ -393,8 +393,8 @@ button.join[disabled]{opacity:.55;cursor:wait}
   });
 
   // Supabase の Project URL と anon（publishable）key。service_role key は絶対に入れないこと
-  var SUPABASE_URL="PASTE_SUPABASE_URL_HERE"; // 例: https://xxxxxxxxxxxx.supabase.co
-  var SUPABASE_KEY="PASTE_SUPABASE_ANON_KEY_HERE";
+  var SUPABASE_URL="https://kpefbnnquaeosgjycsci.supabase.co"; // 例: https://xxxxxxxxxxxx.supabase.co
+  var SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwZWZibm5xdWFlb3Nnanljc2NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxNDcyNTIsImV4cCI6MjA5MzcyMzI1Mn0.J7OwC-Y5eOjwS3FkSF-5EMMhpik5khRFMzppR5ImkuE";
   var TABLE="staff_board_signups";
   async function start(){
     if(!/^https:\/\/[^ ]+$/.test(SUPABASE_URL)||/^PASTE_/.test(SUPABASE_KEY)){setStatus("bad","データベースが未設定です");render();return}
