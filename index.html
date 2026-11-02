@@ -125,6 +125,57 @@ button.join[disabled]{opacity:.55;cursor:wait}
 @media (max-width:520px){.tt{grid-template-columns:2.9rem minmax(0,1fr) minmax(0,1fr)}.blk{padding:5px}.blk .bh{font-size:13px}.blk .chip{font-size:13px;padding:1px 7px}.banner h2{letter-spacing:.2em}}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));max-width:min(92vw,520px);background:var(--ink);color:var(--bg);padding:12px 18px;border-radius:8px;font-size:16px;z-index:40;box-shadow:0 6px 24px rgba(0,0,0,.25)}
 @media (prefers-reduced-motion:no-preference){.card{transition:border-color .15s}}
+
+/* 管理者モード（?admin=合言葉 で開いた時だけ表示される部品） */
+.adminbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:6px;font:700 14px var(--f-body);color:var(--warn)}
+.adminbar button{font:700 13px var(--f-body);padding:4px 12px;border-radius:6px;border:1.5px solid var(--warn);background:var(--surface);color:var(--warn);cursor:pointer}
+.adm{display:inline-flex;flex-wrap:wrap;gap:4px;margin-left:auto}
+.mini{font:700 13px var(--f-body);padding:4px 10px;min-height:34px;border-radius:6px;border:1.5px solid var(--muted);background:var(--surface);color:var(--ink);cursor:pointer}
+.mini.del{border-color:var(--warn);color:var(--warn)}
+.mini.pick{border-color:var(--ok);color:var(--ok)}
+.mini.pick.on{background:var(--ok);color:#fff}
+.mini[disabled],.btn[disabled]{opacity:.55;cursor:wait}
+.edrow{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.edrow input{flex:1 1 8em;min-width:0;font:inherit;font-size:16px;padding:6px 8px;border:1.5px solid var(--ok);border-radius:6px;background:var(--bg);color:var(--ink)}
+.decide{border-top:1.5px dashed var(--line);padding-top:10px;display:flex;flex-direction:column;gap:8px}
+.decide .lbl{font:700 14px var(--f-body);color:var(--ok)}
+.decide .cmform .save{background:var(--ok);border-color:var(--ok)}
+.chip.fin{background:var(--ok-soft);border-color:var(--ok);color:var(--ok);font-weight:700}
+.chip .x{border:0;background:none;color:inherit;font:700 15px var(--f-body);cursor:pointer;padding:0 2px 0 6px}
+.ctl{background:var(--surface-2);border:1.5px solid var(--line);border-radius:8px;padding:12px 14px;margin:0 0 12px;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}
+.ctl .st{flex:1 1 14em;font-size:14px;color:var(--muted)}
+.ctl .st strong{display:block;font:900 17px var(--f-display);color:var(--ink)}
+.btn{font:700 15px var(--f-body);padding:9px 18px;min-height:46px;border-radius:8px;border:2px solid var(--ink);background:var(--ink);color:#fff;cursor:pointer}
+.btn.ghost{background:var(--surface);color:var(--ink)}
+.notice a{color:var(--r1);font-weight:700}
+.mylist{background:var(--ok-soft);border:1.5px solid var(--ok);border-radius:8px;padding:12px 14px;margin:0 0 16px}
+.mylist h3{margin:0 0 6px;font:900 16px var(--f-display);color:var(--ok)}
+.mylist ul{margin:0;padding-left:1.2em}
+.mylist li{margin:2px 0}
+@page{size:A4 portrait;margin:10mm}
+@media print{
+  header,body::before,.noprint,.mylist,.notice,#toast{display:none!important}
+  body{padding:0;font-size:13px}
+  main{padding-top:0}
+  .daybar{margin-bottom:6px}
+  .roster{margin-bottom:10px}
+  .sched{margin-bottom:0}
+  .sched+.sched{break-before:page}
+  /* 1日分がA4縦1枚に収まるよう、印刷時だけ時間割を詰める */
+  .banner{padding:6px 12px}.banner h2{font-size:16px}.banner span{font-size:12px}
+  .colh{padding:3px 6px;font-size:12px}.colh small{font-size:10px}
+  .tl{font-size:10px;padding:1px 3px}
+  .tt{grid-template-columns:2.6rem minmax(0,1fr) minmax(0,1fr)}
+  .blk{margin:2px;padding:3px 6px;gap:1px;break-inside:avoid}
+  .blk .bt{font-size:10px}
+  .blk .bh{font-size:11.5px;padding:1px 4px}
+  .blk .bs,.blk .bo{font-size:9.5px;line-height:1.3}
+  .blk .bn{gap:3px;padding-top:1px}
+  .blk .chip{font-size:11.5px;padding:0 7px}
+  .blk .cm{font-size:9.5px}
+  .blk .pill{font-size:10px;padding:0 7px}
+  .banner,.blk,.chip,.pill,.mylist{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
 </style>
 
 </head>
@@ -144,6 +195,7 @@ button.join[disabled]{opacity:.55;cursor:wait}
         </div>
       </div>
       <div class="status" id="status"><span class="dot"></span><span id="statusText">接続中…</span></div>
+      <div class="adminbar" id="adminBar" hidden>管理者モード<button id="adminExit" type="button">終了</button></div>
       <nav id="tabs" aria-label="日程"></nav>
     </div>
   </header>
@@ -202,10 +254,14 @@ button.join[disabled]{opacity:.55;cursor:wait}
   function sameName(a,b){return a.toLowerCase()===b.toLowerCase()}
 
   var drafts={}, db=null, entries=[], loaded=false, pending={}, myName="", view="day1";
+  // 管理者モード: assigns = 決定版の担当、published = 決定版をスタッフに公開中か
+  var isAdmin=false, assigns=[], published=false, editing=null, edDraft={name:"",c:""}, addDrafts={}, abusy=false;
+  var ADMIN_HASH="44aaa8f38cbee11888334ace9f2eab267a59cb5ffb656b8e7d1102c60ef35c0e"; // 合言葉の SHA-256（合言葉そのものは書かない）
   try{myName=normName(localStorage.getItem("staffName")||"")}catch(e){}
 
   var $app=document.getElementById("app"), $tabs=document.getElementById("tabs"), $in=document.getElementById("nameInput"),
-      $st=document.getElementById("status"), $stt=document.getElementById("statusText"), $toast=document.getElementById("toast");
+      $st=document.getElementById("status"), $stt=document.getElementById("statusText"), $toast=document.getElementById("toast"),
+      $adminBar=document.getElementById("adminBar");
   $in.value=myName;
 
   function toast(msg){
@@ -224,11 +280,14 @@ button.join[disabled]{opacity:.55;cursor:wait}
   document.getElementById("nameSave").addEventListener("click",saveName);
   $in.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();saveName()}});
 
-  function byProg(){
-    var m={};entries.forEach(function(en){(m[en.p]=m[en.p]||[]).push(en)});
+  function group(list){
+    var m={};list.forEach(function(en){(m[en.p]=m[en.p]||[]).push(en)});
     Object.keys(m).forEach(function(k){m[k].sort(function(a,b){return (a.t||0)-(b.t||0)})});
     return m;
   }
+  function byProg(){return group(entries)}
+  function byAssign(){return group(assigns)}
+  function canSeeFinal(){return isAdmin||published}
   function isMine(en){return myName && sameName(en.name,myName)}
 
   function conflictsFor(prog,m){
@@ -239,14 +298,40 @@ button.join[disabled]{opacity:.55;cursor:wait}
 
   function renderTabs(){
     var items=[["day1","1日目","11/20(金)"],["day2","2日目","11/21(土)"],["day3","3日目","11/22(日)"],["people","全体一覧","時間割で確認"]];
+    if(canSeeFinal()) items.push(["final","決定版",isAdmin?(published?"公開中":"非公開・作成中"):"確定した担当"]);
     $tabs.innerHTML=items.map(function(t){
       return '<a href="#'+t[0]+'"'+(view===t[0]?' aria-current="page"':'')+'>'+t[1]+'<small>'+t[2]+'</small></a>';
     }).join("");
   }
 
-  function cardHtml(p,m){
+  function lineHtml(p,en,a){
+    var dis=abusy?' disabled':'';
+    if(isAdmin&&editing===en.id){
+      return '<div class="edrow"><input id="ed-name" data-keep data-ed="name" type="text" maxlength="20" aria-label="名前" value="'+esc(edDraft.name)+'" autocomplete="off">'+
+        '<input id="ed-c" data-keep data-ed="c" type="text" maxlength="80" aria-label="コメント" placeholder="コメント" value="'+esc(edDraft.c)+'" autocomplete="off">'+
+        '<button type="button" class="mini pick on" data-act="edsave" data-id="'+en.id+'"'+dis+'>保存</button><button type="button" class="mini" data-act="edcancel">やめる</button></div>';
+    }
+    var h='<div class="pl"><span class="chip'+(isMine(en)?' me':'')+'">'+esc(en.name)+'</span>'+(en.c?'<span class="cm">'+esc(en.c)+'</span>':'');
+    if(isAdmin){
+      var on=(a[p.id]||[]).some(function(x){return sameName(x.name,en.name)});
+      h+='<span class="adm"><button type="button" class="mini pick'+(on?' on':'')+'" data-act="pick" data-p="'+p.id+'" data-name="'+esc(en.name)+'"'+dis+'>'+(on?'✓ 決定':'決定に入れる')+'</button>'+
+        '<button type="button" class="mini" data-act="edit" data-id="'+en.id+'"'+dis+'>修正</button>'+
+        '<button type="button" class="mini del" data-act="del" data-id="'+en.id+'"'+dis+'>削除</button></span>';
+    }
+    return h+'</div>';
+  }
+
+  function decideHtml(p,a){
+    var list=a[p.id]||[], dis=abusy?' disabled':'';
+    return '<div class="decide"><span class="lbl">決定版の担当（'+list.length+'名）</span><div class="people">'+
+      (list.length?list.map(function(x){return '<span class="chip fin">'+esc(x.name)+'<button type="button" class="x" data-act="unassign" data-id="'+x.id+'" aria-label="'+esc(x.name)+'を決定版から外す"'+dis+'>✕</button></span>'}).join(""):'<span class="empty-line">まだ決まっていません</span>')+'</div>'+
+      '<div class="cmform"><input id="add-'+p.id+'" data-keep data-add="'+p.id+'" type="text" maxlength="20" placeholder="回答していない人の名前" aria-label="決定版に追加する名前" value="'+esc(addDrafts[p.id]||"")+'" autocomplete="off">'+
+      '<button type="button" class="save" data-act="add" data-p="'+p.id+'"'+dis+'>追加</button></div></div>';
+  }
+
+  function cardHtml(p,m,a){
     var list=m[p.id]||[], mine=list.some(isMine), busy=!!pending[p.id];
-    var chips=list.length?list.map(function(en){return '<div class="pl"><span class="chip'+(isMine(en)?' me':'')+'">'+esc(en.name)+'</span>'+(en.c?'<span class="cm">'+esc(en.c)+'</span>':'')+'</div>'}).join(""):'<span class="empty-line">まだ誰も回答していません</span>';
+    var chips=list.length?list.map(function(en){return lineHtml(p,en,a)}).join(""):'<span class="empty-line">まだ誰も回答していません</span>';
     var my=list.filter(isMine)[0], form='';
     if(my){
       var val=drafts.hasOwnProperty(p.id)?drafts[p.id]:my.c;
@@ -265,32 +350,34 @@ button.join[disabled]{opacity:.55;cursor:wait}
       '<div class="act"><button type="button" class="join'+(mine?' on':'')+'" data-act="toggle" data-p="'+p.id+'"'+(busy?' disabled':'')+'>'+
       (busy?(mine?'取り消し中…':'送信中…'):mine?'✓ 対応可能（タップで取り消し）':'対応できる')+'</button>'+
       (conf?'<span class="conflict">同じ時間帯に別のプログラムも選択中です</span>':'')+'</div>'+
+      (isAdmin?decideHtml(p,a):'')+
       '</article>';
   }
 
   function renderDay(d){
-    var m=byProg(), list=P.filter(function(p){return p.day===d});
+    var m=byProg(), a=byAssign(), list=P.filter(function(p){return p.day===d});
     var none=list.filter(function(p){return !(m[p.id]||[]).length}).length;
     var html='';
+    if(published&&!isAdmin) html+='<div class="notice"><strong>担当の決定版が公開されています。</strong> <a href="#final">「決定版」タブ</a>で自分の担当を確認してください。</div>';
     if(!myName) html+='<div class="notice warn"><strong>最初に名前を入力してください。</strong> 画面上の「あなたの名前」に入力して「決定」を押すと、各プログラムの「対応できる」ボタンが使えます。</div>';
     html+='<div class="daybar"><h2>'+DAYS[d]+'</h2><span class="count">担当なし <b>'+none+'</b> ／ 全'+list.length+'プログラム</span></div><div class="rooms">';
     [1,2].forEach(function(r){
       var rl=list.filter(function(p){return p.room===r}).sort(function(a,b){return a.sm-b.sm});
       html+='<section class="room r'+r+'"><h3>'+ROOMS[r][0]+'<span>'+ROOMS[r][1]+'</span></h3><div class="list">'+
-        rl.map(function(p){return cardHtml(p,m)}).join("")+'</div></section>';
+        rl.map(function(p){return cardHtml(p,m,a)}).join("")+'</div></section>';
     });
     html+='</div>';
     $app.innerHTML=html;
   }
 
   function fmt(m){return Math.floor(m/60)+":"+String(m%60).padStart(2,"0")}
-  function schedHtml(d,m){
+  function schedHtml(d,m,label){
     var list=P.filter(function(p){return p.day===d}),ts={};
     list.forEach(function(p){ts[p.sm]=1;ts[p.em]=1});
     var times=Object.keys(ts).map(Number).sort(function(a,b){return a-b}),idx={};
     times.forEach(function(t,i){idx[t]=i});
     var n=times.length-1;
-    var h='<section class="sched"><div class="banner"><h2>日 程 表</h2><span>'+d+'日目・'+DAYS[d]+'</span></div><div class="tt">'+
+    var h='<section class="sched"><div class="banner"><h2>'+(label||'日 程 表')+'</h2><span>'+d+'日目・'+DAYS[d]+'</span></div><div class="tt">'+
       '<div class="colh" style="grid-column:1">時間</div>'+
       [1,2].map(function(r){return '<div class="colh c'+r+'" style="grid-column:'+(r+1)+'">'+ROOMS[r][0]+'<small>'+ROOMS[r][1]+'</small></div>'}).join("");
     for(var i=0;i<n;i++){
@@ -320,17 +407,46 @@ button.join[disabled]{opacity:.55;cursor:wait}
     $app.innerHTML=html;
   }
 
+  function progLabel(q){return q.day+'日目 '+q.s+'–'+q.e+'　'+ROOMS[q.room][0]+'　'+q.title}
+
+  function renderFinal(){
+    if(!canSeeFinal()){$app.innerHTML='<div class="notice">決定版はまだ公開されていません。公開されると、このタブで確認できます。</div>';return}
+    var a=byAssign(), people={}, html='';
+    assigns.forEach(function(x){var q=BYID[x.p];if(!q)return;var k=x.name.toLowerCase();(people[k]=people[k]||{name:x.name,list:[]}).list.push(q)});
+    var arr=Object.keys(people).map(function(k){return people[k]}).sort(function(x,y){return x.name.localeCompare(y.name,"ja")});
+    var none=P.filter(function(p){return !(a[p.id]||[]).length}).length;
+    if(isAdmin){
+      html+='<div class="ctl noprint"><div class="st"><strong>'+(published?'公開中':'非公開（作成中）')+'</strong>'+
+        (published?'スタッフ全員がこのタブを見られます。':'今は管理者だけが見られます。完成したら「公開する」を押してください。')+'</div>'+
+        '<button type="button" class="btn" data-act="publish" data-v="'+(published?'false':'true')+'"'+(abusy?' disabled':'')+'>'+(published?'非公開に戻す':'公開する')+'</button>'+
+        '<button type="button" class="btn ghost" data-act="print">PDFで保存・印刷</button></div>'+
+        '<p class="hint noprint">担当の決定・追加・取り消しは、1日目〜3日目のタブの各プログラムにある「決定版の担当」で行います。</p>';
+    }else{
+      html+='<div class="ctl noprint"><div class="st"><strong>3日分の日程表をPDFにできます</strong>印刷画面が開いたら、保存先（プリンター）で「PDFに保存」を選んでください。</div>'+
+        '<button type="button" class="btn ghost" data-act="print">PDFで保存・印刷</button></div>';
+    }
+    html+='<div class="daybar"><h2>担当 決定版</h2><span class="count">担当者 '+arr.length+'名 ／ 担当なし <b>'+none+'</b> ／ 全'+P.length+'プログラム</span></div>';
+    var me=myName&&people[myName.toLowerCase()];
+    if(myName) html+='<section class="mylist"><h3>'+esc(myName)+' さんの担当</h3>'+(me?'<ul>'+me.list.sort(function(x,y){return x.day-y.day||x.sm-y.sm}).map(function(q){return '<li>'+esc(progLabel(q))+'</li>'}).join("")+'</ul>':'<span class="empty-line">担当はありません</span>')+'</section>';
+    html+='<div class="roster">'+(arr.length?arr.map(function(pr){return '<span class="chip'+(myName&&sameName(pr.name,myName)?' me':'')+'">'+esc(pr.name)+'<b>'+pr.list.length+'件</b></span>'}).join(""):'<span class="empty-line">まだ担当が決まっていません</span>')+'</div>';
+    [1,2,3].forEach(function(d){html+=schedHtml(d,a,'決 定 版')});
+    $app.innerHTML=html;
+  }
+
   function render(){
-    var ae=document.activeElement, fid=(ae&&ae.getAttribute&&ae.getAttribute("data-cm"))?ae.id:null, ss=fid?ae.selectionStart:0;
+    var ae=document.activeElement, keep=ae&&ae.getAttribute&&(ae.getAttribute("data-cm")||ae.hasAttribute("data-keep")),
+        fid=keep?ae.id:null, ss=fid?ae.selectionStart:0;
     renderTabs();
+    $adminBar.hidden=!isAdmin;
     if(view==="people") renderPeople();
+    else if(view==="final") renderFinal();
     else renderDay(+view.slice(3));
     if(fid){var el=document.getElementById(fid);if(el){el.focus();try{el.setSelectionRange(ss,ss)}catch(e){}}}
   }
 
   function route(){
     var h=(location.hash||"").slice(1);
-    view=["day1","day2","day3","people"].indexOf(h)>=0?h:"day1";
+    view=["day1","day2","day3","people","final"].indexOf(h)>=0?h:"day1";
     render();window.scrollTo(0,0);
   }
   window.addEventListener("hashchange",route);
@@ -367,17 +483,107 @@ button.join[disabled]{opacity:.55;cursor:wait}
     }catch(e){toast(errMsg(e))}
     delete pending["c"+pid];render();
   }
+  // ---- 管理者の操作（回答の修正・削除、決定版の作成・公開） ----
+  async function adminRun(fn,done){
+    if(!db){toast("共有データに接続できていません");return}
+    if(abusy) return;
+    abusy=true;render();
+    try{await fn();if(done) toast(done)}catch(e){toast(errMsg(e))}
+    abusy=false;render();
+  }
+  function findEntry(id){return entries.filter(function(en){return en.id===id})[0]}
+
+  function startEdit(id){
+    var en=findEntry(id);if(!en) return;
+    editing=id;edDraft={name:en.name,c:en.c};render();
+    var el=document.getElementById("ed-name");if(el) el.focus();
+  }
+  function saveEdit(id){
+    var en=findEntry(id);if(!en){editing=null;render();return}
+    var nn=normName(edDraft.name), c=edDraft.c.replace(/\s+/g," ").trim().slice(0,80);
+    if(!nn){toast("名前を入力してください");return}
+    var nid=docId(en.p,nn), old=(byAssign()[en.p]||[]).filter(function(x){return sameName(x.name,en.name)})[0];
+    adminRun(async function(){
+      await db.doc("signups/"+nid).set({p:en.p,name:nn,t:en.t,c:c});
+      if(nid!==en.id) await db.doc("signups/"+en.id).delete();
+      // 決定版に入っている人の名前を直した場合は、決定版の名前も合わせる
+      if(old&&!sameName(old.name,nn)){
+        await db.doc("assignments/"+docId(en.p,nn)).set({p:en.p,name:nn,t:old.t});
+        await db.doc("assignments/"+old.id).delete();
+      }
+      editing=null;
+    },"回答を修正しました");
+  }
+  function deleteEntry(id){
+    var en=findEntry(id);if(!en) return;
+    var q=BYID[en.p];
+    if(!confirm("「"+en.name+"」さんの回答を削除しますか？\n"+(q?progLabel(q):"")+"\n\n（決定版の担当には影響しません）")) return;
+    adminRun(function(){return db.doc("signups/"+id).delete()},"回答を削除しました");
+  }
+  function assign(pid,name){
+    var n=normName(name);
+    if(!n){toast("名前を入力してください");return}
+    if((byAssign()[pid]||[]).some(function(x){return sameName(x.name,n)})){toast("「"+n+"」さんはすでに決定版に入っています");return}
+    adminRun(async function(){await db.doc("assignments/"+docId(pid,n)).set({p:pid,name:n,t:Date.now()});delete addDrafts[pid]});
+  }
+  function unassign(id){adminRun(function(){return db.doc("assignments/"+id).delete()})}
+  function togglePick(pid,name){
+    var cur=(byAssign()[pid]||[]).filter(function(x){return sameName(x.name,name)})[0];
+    if(cur) unassign(cur.id); else assign(pid,name);
+  }
+  function setPublished(v){
+    if(v&&!confirm("決定版をスタッフ全員に公開しますか？")) return;
+    adminRun(function(){return db.doc("settings/published").set({value:v?"true":"false"})},v?"決定版を公開しました":"決定版を非公開に戻しました");
+  }
+
+  async function sha256(s){
+    var b=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s));
+    return Array.from(new Uint8Array(b)).map(function(x){return x.toString(16).padStart(2,"0")}).join("");
+  }
+  // ?admin=合言葉 で開くと管理者モード。合言葉はこの端末に記憶し、URLからは消す
+  async function checkAdmin(){
+    var q=null, saved="";
+    try{q=new URLSearchParams(location.search).get("admin")}catch(e){}
+    try{saved=localStorage.getItem("staffBoardAdmin")||""}catch(e){}
+    var key=q||saved;if(!key) return;
+    if(q!==null) history.replaceState(null,"",location.pathname+location.hash);
+    var ok=false;try{ok=(await sha256(key))===ADMIN_HASH}catch(e){}
+    if(ok){isAdmin=true;try{localStorage.setItem("staffBoardAdmin",key)}catch(e){};if(q) toast("管理者モードで開きました")}
+    else{try{localStorage.removeItem("staffBoardAdmin")}catch(e){};if(q) toast("管理者の合言葉が違います")}
+    render();
+  }
+  document.getElementById("adminExit").addEventListener("click",function(){
+    if(!confirm("管理者モードを終了しますか？\nもう一度使うときは、合言葉付きのURLで開き直してください。")) return;
+    try{localStorage.removeItem("staffBoardAdmin")}catch(e){}
+    isAdmin=false;editing=null;render();toast("管理者モードを終了しました");
+  });
+
   $app.addEventListener("input",function(ev){
-    var t=ev.target;if(t&&t.getAttribute&&t.getAttribute("data-cm")) drafts[t.getAttribute("data-cm")]=t.value;
+    var t=ev.target;if(!t||!t.getAttribute) return;
+    if(t.getAttribute("data-cm")) drafts[t.getAttribute("data-cm")]=t.value;
+    else if(t.getAttribute("data-ed")) edDraft[t.getAttribute("data-ed")]=t.value;
+    else if(t.getAttribute("data-add")) addDrafts[t.getAttribute("data-add")]=t.value;
   });
   $app.addEventListener("keydown",function(ev){
-    var t=ev.target;if(ev.key==="Enter"&&t&&t.getAttribute&&t.getAttribute("data-cm")){ev.preventDefault();saveComment(t.getAttribute("data-cm"))}
+    var t=ev.target;if(ev.key!=="Enter"||!t||!t.getAttribute) return;
+    if(t.getAttribute("data-cm")){ev.preventDefault();saveComment(t.getAttribute("data-cm"))}
+    else if(t.getAttribute("data-ed")){ev.preventDefault();saveEdit(editing)}
+    else if(t.getAttribute("data-add")){ev.preventDefault();var ap=t.getAttribute("data-add");assign(ap,addDrafts[ap]||"")}
   });
   $app.addEventListener("click",function(ev){
     var b=ev.target.closest("button[data-act]");if(!b) return;
-    var pid=b.getAttribute("data-p"),act=b.getAttribute("data-act");
+    var pid=b.getAttribute("data-p"),act=b.getAttribute("data-act"),id=b.getAttribute("data-id");
     if(act==="savecm") saveComment(pid);
     else if(act==="remove") setMine(pid,false);
+    else if(act==="pick") togglePick(pid,b.getAttribute("data-name"));
+    else if(act==="edit") startEdit(id);
+    else if(act==="edcancel"){editing=null;render()}
+    else if(act==="edsave") saveEdit(id);
+    else if(act==="del") deleteEntry(id);
+    else if(act==="add") assign(pid,addDrafts[pid]||"");
+    else if(act==="unassign") unassign(id);
+    else if(act==="publish") setPublished(b.getAttribute("data-v")==="true");
+    else if(act==="print") window.print();
     else{
       var m=byProg(),mine=(m[pid]||[]).some(isMine);
       if(mine) delete drafts[pid];
@@ -388,33 +594,45 @@ button.join[disabled]{opacity:.55;cursor:wait}
   // Supabase の Project URL と anon（publishable）key。service_role key は絶対に入れないこと
   var SUPABASE_URL="https://kpefbnnquaeosgjycsci.supabase.co"; // 例: https://xxxxxxxxxxxx.supabase.co
   var SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwZWZibm5xdWFlb3Nnanljc2NpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxNDcyNTIsImV4cCI6MjA5MzcyMzI1Mn0.J7OwC-Y5eOjwS3FkSF-5EMMhpik5khRFMzppR5ImkuE";
-  var SCHEMA="staff_board", TABLE="signups"; // 共有プロジェクト内のこのシステム専用スキーマ
+  // 共有プロジェクト内のこのシステム専用スキーマ。テーブル: signups=スタッフの回答 / assignments=決定版 / settings=公開設定
+  var SCHEMA="staff_board";
   async function start(){
     if(!/^https:\/\/[^ ]+$/.test(SUPABASE_URL)||/^PASTE_/.test(SUPABASE_KEY)){setStatus("bad","データベースが未設定です");render();return}
-    var base=SUPABASE_URL.replace(/\/+$/,"")+"/rest/v1/"+TABLE, last="";
+    var base=SUPABASE_URL.replace(/\/+$/,"")+"/rest/v1/", last="";
     var hdr={"apikey":SUPABASE_KEY,"Content-Type":"application/json","Accept-Profile":SCHEMA,"Content-Profile":SCHEMA};
     if(/^eyJ/.test(SUPABASE_KEY)) hdr.Authorization="Bearer "+SUPABASE_KEY; // 旧形式（JWT）の anon key
-    async function call(method,query,body,prefer){
+    async function call(method,table,query,body,prefer){
       var h=Object.assign({},hdr);if(prefer) h.Prefer=prefer;
-      var r=await fetch(base+query,{method:method,headers:h,cache:"no-store",body:body===undefined?undefined:JSON.stringify(body)});
+      var r=await fetch(base+table+query,{method:method,headers:h,cache:"no-store",body:body===undefined?undefined:JSON.stringify(body)});
       if(!r.ok){var e=new Error("http "+r.status);e.code=(r.status===401||r.status===403||r.status===400)?"invalid_argument":"unavailable";throw e}
       var txt=await r.text(); // return=minimal の応答は本文が空
       return txt?JSON.parse(txt):null;
     }
     async function poll(){
       try{
-        var rows=(await call("GET","?select=id,p,name,t,c&order=t.asc"))||[];
-        var str=JSON.stringify(rows);
+        var res=await Promise.all([
+          call("GET","signups","?select=id,p,name,t,c&order=t.asc"),
+          call("GET","assignments","?select=id,p,name,t,c&order=t.asc"),
+          call("GET","settings","?select=key,value")
+        ]);
+        var str=JSON.stringify(res);
         loaded=true;setStatus("live","共有中・数秒ごとに自動更新");
         if(str===last) return;
         last=str;
-        entries=rows.map(function(x){return {id:x.id,p:x.p,name:String(x.name||""),t:+x.t||0,c:String(x.c||"")}}).filter(function(x){return x.p&&x.name});
+        function rows(list){return (list||[]).map(function(x){return {id:x.id,p:x.p,name:String(x.name||""),t:+x.t||0,c:String(x.c||"")}}).filter(function(x){return x.p&&x.name})}
+        entries=rows(res[0]);assigns=rows(res[1]);
+        published=(res[2]||[]).some(function(s){return s.key==="published"&&s.value==="true"});
+        if(editing&&!findEntry(editing)) editing=null;
         render();
       }catch(e){setStatus("bad","共有データを読み込めません")}
     }
-    db={doc:function(path){var id=path.split("/").pop();return {
-      set:function(d){return call("POST","?on_conflict=id",{id:id,p:d.p,name:d.name,t:d.t,c:d.c||""},"resolution=merge-duplicates,return=minimal").then(poll)},
-      delete:function(){return call("DELETE","?id=eq."+encodeURIComponent(id),undefined,"return=minimal").then(poll)}
+    // path は "テーブル名/キー"。settings だけ主キーが key 列
+    db={doc:function(path){var i=path.indexOf("/"),tb=path.slice(0,i),id=path.slice(i+1),pk=tb==="settings"?"key":"id";return {
+      set:function(d){
+        var row=tb==="settings"?{key:id,value:String(d.value)}:{id:id,p:d.p,name:d.name,t:d.t,c:d.c||""};
+        return call("POST",tb,"?on_conflict="+pk,row,"resolution=merge-duplicates,return=minimal").then(poll);
+      },
+      delete:function(){return call("DELETE",tb,"?"+pk+"=eq."+encodeURIComponent(id),undefined,"return=minimal").then(poll)}
     }}};
     setStatus("","接続中…");
     setTimeout(function(){if(!loaded) setStatus("bad","読み込みに時間がかかっています")},10000);
@@ -423,6 +641,7 @@ button.join[disabled]{opacity:.55;cursor:wait}
   }
 
   route();
+  checkAdmin();
   start();
 })();
 </script>

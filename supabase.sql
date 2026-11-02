@@ -32,6 +32,42 @@ create policy "signups_insert" on staff_board.signups for insert to anon with ch
 create policy "signups_update" on staff_board.signups for update to anon using (true) with check (true);
 create policy "signups_delete" on staff_board.signups for delete to anon using (true);
 
+-- 決定版の担当（管理者が作成する。スタッフの回答 signups とは別に持つ）
+create table if not exists staff_board.assignments (
+  id   text primary key check (char_length(id) <= 120),
+  p    text not null check (p ~ '^d[1-3]r[12]-[0-9]{4}$'),
+  name text not null check (char_length(name) between 1 and 20),
+  t    bigint not null default 0,
+  c    text not null default '' check (char_length(c) <= 80)
+);
+alter table staff_board.assignments enable row level security;
+grant select, insert, update, delete on table staff_board.assignments to anon;
+grant all on table staff_board.assignments to service_role;
+drop policy if exists "assignments_read"   on staff_board.assignments;
+drop policy if exists "assignments_insert" on staff_board.assignments;
+drop policy if exists "assignments_update" on staff_board.assignments;
+drop policy if exists "assignments_delete" on staff_board.assignments;
+create policy "assignments_read"   on staff_board.assignments for select to anon using (true);
+create policy "assignments_insert" on staff_board.assignments for insert to anon with check (true);
+create policy "assignments_update" on staff_board.assignments for update to anon using (true) with check (true);
+create policy "assignments_delete" on staff_board.assignments for delete to anon using (true);
+
+-- 設定（今は「決定版を公開中か」だけ）
+create table if not exists staff_board.settings (
+  key   text primary key check (key in ('published')),
+  value text not null check (char_length(value) <= 20)
+);
+alter table staff_board.settings enable row level security;
+grant select, insert, update on table staff_board.settings to anon;
+grant all on table staff_board.settings to service_role;
+drop policy if exists "settings_read"   on staff_board.settings;
+drop policy if exists "settings_insert" on staff_board.settings;
+drop policy if exists "settings_update" on staff_board.settings;
+create policy "settings_read"   on staff_board.settings for select to anon using (true);
+create policy "settings_insert" on staff_board.settings for insert to anon with check (true);
+create policy "settings_update" on staff_board.settings for update to anon using (true) with check (true);
+insert into staff_board.settings (key, value) values ('published', 'false') on conflict (key) do nothing;
+
 -- 旧テーブル（public.staff_board_signups）からの移行: 回答をコピーしてから旧テーブルを削除する
 do $$
 begin
@@ -53,4 +89,4 @@ begin
   end if;
 end $$;
 
-select count(*) as "移行した回答数" from staff_board.signups;
+select (select count(*) from staff_board.signups) as "回答数", (select count(*) from staff_board.assignments) as "決定版の担当数";
