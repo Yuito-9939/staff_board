@@ -392,29 +392,35 @@ button.join[disabled]{opacity:.55;cursor:wait}
     }
   });
 
-  var DB_URL="PASTE_DATABASE_URL_HERE"; // 例: https://xxxx-default-rtdb.asia-southeast1.firebasedatabase.app
+  // Supabase の Project URL と anon（publishable）key。service_role key は絶対に入れないこと
+  var SUPABASE_URL="PASTE_SUPABASE_URL_HERE"; // 例: https://xxxxxxxxxxxx.supabase.co
+  var SUPABASE_KEY="PASTE_SUPABASE_ANON_KEY_HERE";
+  var TABLE="staff_board_signups";
   async function start(){
-    if(!/^https:\/\/[^ ]+$/.test(DB_URL)){setStatus("bad","データベースURLが未設定です");render();return}
-    var base=DB_URL.replace(/\/+$/,""), last="";
-    async function call(method,path,body){
-      var r=await fetch(base+"/"+path+".json",{method:method,body:body===undefined?undefined:JSON.stringify(body)});
-      if(!r.ok){var e=new Error("http "+r.status);e.code=(r.status===401||r.status===403)?"invalid_argument":"unavailable";throw e}
-      return r.json();
+    if(!/^https:\/\/[^ ]+$/.test(SUPABASE_URL)||/^PASTE_/.test(SUPABASE_KEY)){setStatus("bad","データベースが未設定です");render();return}
+    var base=SUPABASE_URL.replace(/\/+$/,"")+"/rest/v1/"+TABLE, last="";
+    var hdr={"apikey":SUPABASE_KEY,"Content-Type":"application/json"};
+    if(/^eyJ/.test(SUPABASE_KEY)) hdr.Authorization="Bearer "+SUPABASE_KEY; // 旧形式（JWT）の anon key
+    async function call(method,query,body,prefer){
+      var h=Object.assign({},hdr);if(prefer) h.Prefer=prefer;
+      var r=await fetch(base+query,{method:method,headers:h,cache:"no-store",body:body===undefined?undefined:JSON.stringify(body)});
+      if(!r.ok){var e=new Error("http "+r.status);e.code=(r.status===401||r.status===403||r.status===400)?"invalid_argument":"unavailable";throw e}
+      return r.status===204?null:r.json();
     }
     async function poll(){
       try{
-        var data=(await call("GET","signups"))||{};
-        var str=JSON.stringify(data);
+        var rows=(await call("GET","?select=id,p,name,t,c&order=t.asc"))||[];
+        var str=JSON.stringify(rows);
         loaded=true;setStatus("live","共有中・数秒ごとに自動更新");
         if(str===last) return;
         last=str;
-        entries=Object.keys(data).map(function(id){var x=data[id]||{};return {id:id,p:x.p,name:String(x.name||""),t:x.t||0,c:String(x.c||"")}}).filter(function(x){return x.p&&x.name});
+        entries=rows.map(function(x){return {id:x.id,p:x.p,name:String(x.name||""),t:+x.t||0,c:String(x.c||"")}}).filter(function(x){return x.p&&x.name});
         render();
       }catch(e){setStatus("bad","共有データを読み込めません")}
     }
-    db={doc:function(path){return {
-      set:function(d){return call("PUT",path,d).then(poll)},
-      delete:function(){return call("DELETE",path).then(poll)}
+    db={doc:function(path){var id=path.split("/").pop();return {
+      set:function(d){return call("POST","?on_conflict=id",{id:id,p:d.p,name:d.name,t:d.t,c:d.c||""},"resolution=merge-duplicates,return=minimal").then(poll)},
+      delete:function(){return call("DELETE","?id=eq."+encodeURIComponent(id),undefined,"return=minimal").then(poll)}
     }}};
     setStatus("","接続中…");
     setTimeout(function(){if(!loaded) setStatus("bad","読み込みに時間がかかっています")},10000);
