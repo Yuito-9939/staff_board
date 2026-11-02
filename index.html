@@ -258,7 +258,7 @@ button.join[disabled]{opacity:.55;cursor:wait}
     if(my){
       var val=drafts.hasOwnProperty(p.id)?drafts[p.id]:my.c;
       form='<div class="cmform"><label class="cml" for="cm-'+p.id+'">コメント</label><input id="cm-'+p.id+'" data-cm="'+p.id+'" type="text" maxlength="80" placeholder="例：10時から参加できます" value="'+esc(val)+'" autocomplete="off">'+
-        '<button type="button" class="save" data-act="savecm" data-p="'+p.id+'"'+(pending["c"+p.id]?' disabled':'')+'>保存</button></div>';
+        '<button type="button" class="save" data-act="savecm" data-p="'+p.id+'"'+(pending["c"+p.id]?' disabled>保存中…':'>保存')+'</button></div>';
     }
     var conf=mine && conflictsFor(p,m);
     return '<article class="card'+(mine?' mine':'')+'">'+
@@ -270,7 +270,7 @@ button.join[disabled]{opacity:.55;cursor:wait}
       (p.note?'<p class="sub">'+esc(p.note)+'</p>':'')+
       '<div class="plist" aria-label="対応可能なスタッフ">'+chips+'</div>'+form+
       '<div class="act"><button type="button" class="join'+(mine?' on':'')+'" data-act="toggle" data-p="'+p.id+'"'+(busy?' disabled':'')+'>'+
-      (mine?'✓ 対応可能（タップで取り消し）':'対応できる')+'</button>'+
+      (busy?(mine?'取り消し中…':'送信中…'):mine?'✓ 対応可能（タップで取り消し）':'対応できる')+'</button>'+
       (conf?'<span class="conflict">同じ時間帯に別のプログラムも選択中です</span>':'')+'</div>'+
       '</article>';
   }
@@ -405,7 +405,8 @@ button.join[disabled]{opacity:.55;cursor:wait}
       var h=Object.assign({},hdr);if(prefer) h.Prefer=prefer;
       var r=await fetch(base+query,{method:method,headers:h,cache:"no-store",body:body===undefined?undefined:JSON.stringify(body)});
       if(!r.ok){var e=new Error("http "+r.status);e.code=(r.status===401||r.status===403||r.status===400)?"invalid_argument":"unavailable";throw e}
-      return r.status===204?null:r.json();
+      var txt=await r.text(); // return=minimal の応答は本文が空
+      return txt?JSON.parse(txt):null;
     }
     async function poll(){
       try{
