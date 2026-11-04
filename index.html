@@ -169,15 +169,10 @@ button.join[disabled]{opacity:.55;cursor:wait}
   .daybar{margin-bottom:6px}
   .roster{margin-bottom:10px}
   .sched{margin-bottom:0;break-before:page}
+  /* 決定版は見出しと担当者別一覧を印刷しないので、1日目の日程表から始めて全3ページにする */
+  .everyone+.sched{break-before:auto}
   /* 印刷した人の名前だけ目立たないよう、全員を同じ見た目にする */
   .chip.me{background:var(--surface-2);border-color:var(--line);color:var(--ink);font-weight:400}
-  .everyone h3{font-size:15px;margin-bottom:6px}
-  .ev-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
-  .ev{padding:4px 8px;break-inside:avoid}
-  .ev-name{font-size:13px;padding-bottom:2px;margin-bottom:2px}
-  .ev-name span{font-size:10.5px}
-  .ev li{font-size:10.5px;line-height:1.4}
-  .ev li b{font-size:10px}
   /* 1日分がA4縦1枚に収まるよう、印刷時だけ時間割を詰める */
   .banner{padding:6px 12px}.banner h2{font-size:16px}.banner span{font-size:12px}
   .colh{padding:3px 6px;font-size:12px}.colh small{font-size:10px}
@@ -442,10 +437,10 @@ button.join[disabled]{opacity:.55;cursor:wait}
       html+='<div class="ctl noprint"><div class="st"><strong>3日分の日程表をPDFにできます</strong>印刷画面が開いたら、保存先（プリンター）で「PDFに保存」を選んでください。</div>'+
         '<button type="button" class="btn ghost" data-act="print">PDFで保存・印刷</button></div>';
     }
-    html+='<div class="daybar"><h2>担当 決定版</h2><span class="count">担当者 '+arr.length+'名 ／ 担当なし <b>'+none+'</b> ／ 全'+P.length+'プログラム</span></div>';
+    html+='<div class="daybar noprint"><h2>担当 決定版</h2><span class="count">担当者 '+arr.length+'名 ／ 担当なし <b>'+none+'</b> ／ 全'+P.length+'プログラム</span></div>';
     var me=myName&&people[myName.toLowerCase()];
     if(myName) html+='<section class="mylist"><h3>'+esc(myName)+' さんの担当</h3>'+(me?'<ul>'+me.list.sort(function(x,y){return x.day-y.day||x.sm-y.sm}).map(function(q){return '<li>'+esc(progLabel(q))+'</li>'}).join("")+'</ul>':'<span class="empty-line">担当はありません</span>')+'</section>';
-    html+='<section class="everyone"><h3>担当者別一覧</h3>'+(arr.length?'<div class="ev-grid">'+arr.map(function(pr){
+    html+='<section class="everyone noprint"><h3>担当者別一覧</h3>'+(arr.length?'<div class="ev-grid">'+arr.map(function(pr){
         var items=pr.list.sort(function(x,y){return x.day-y.day||x.sm-y.sm});
         return '<div class="ev"><div class="ev-name">'+esc(pr.name)+'<span>'+items.length+'件</span></div><ul>'+items.map(function(q){
           return '<li><b>'+DAYS[q.day].replace(/^11月/,"11/").replace("日(","(")+' '+q.s+'–'+q.e+'</b> '+ROOMS[q.room][0]+'　'+esc(q.title)+'</li>'}).join("")+'</ul></div>'}).join("")+'</div>'
